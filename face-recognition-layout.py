@@ -1,7 +1,7 @@
 from PyQt5.QtGui import QStandardItemModel
 from PyQt5.QtWidgets import QApplication, QPushButton, QMainWindow, QWidget, QDialog, QGroupBox, QHBoxLayout, \
     QVBoxLayout, \
-    QLabel, QTableWidgetItem, QTableWidget, QHeaderView, QComboBox
+    QLabel, QTableWidgetItem, QTableWidget, QHeaderView, QComboBox, QLineEdit, QFileDialog, QMessageBox
 from PyQt5 import QtGui
 from PyQt5.QtCore import QRect
 import os
@@ -13,15 +13,17 @@ from PyQt5.QtGui import QIcon, QPixmap
 from ui_main_window import *
 from PyQt5.QtGui import QImage
 from datetime import datetime
-import pandas as pd
+import mysql.connector
 import sys
 import xlsxwriter
+from PyQt5.QtCore import QSize
+from shutil import copyfile
 
 
 class Window(QDialog):
     def __init__(self):
         super().__init__()
-
+        self.mainBackground = QImage("resorces/mainbac2.png")
         self.isAttendence = False
         self.title = "Face recognition Layout"
         self.left = 700
@@ -30,6 +32,11 @@ class Window(QDialog):
         self.height = 1000
         self.IconName = "resorces/face-recognition.png"
         self.initWindow()
+        # setting background image of main window
+        simage = self.mainBackground.scaled(QSize(self.width, self.height))
+        pallate = QtGui.QPalette()
+        pallate.setBrush(QtGui.QPalette.Window, QtGui.QBrush(simage))
+        self.setPalette(pallate)
 
     def initWindow(self):
         self.setWindowIcon(QtGui.QIcon(self.IconName))
@@ -76,6 +83,7 @@ class Window(QDialog):
         addstudentButton = QPushButton("add new student")
         addstudentButton.setToolTip("click here to add new student to selected class")
         addstudentButton.setMinimumHeight(40)
+        addstudentButton.clicked.connect(self.addnewStudent)
         hboxlayout.addWidget(addstudentButton)
 
         self.startattendenceButton = QPushButton("Start Attendance session")
@@ -112,11 +120,24 @@ class Window(QDialog):
             QHeaderView.Stretch)
 
     def initCameraBox(self):
+        camerabuttonLayout = QHBoxLayout()
+        camreraButtonBox = QGroupBox()
+
         camerahboxlayout = QVBoxLayout()
         self.exportToExcelButton = QPushButton("Export to excel")
         self.exportToExcelButton.setMinimumHeight(40)
         self.exportToExcelButton.clicked.connect(self.Exporttoexcel)
-        camerahboxlayout.addWidget(self.exportToExcelButton)
+        self.exportToExcelButton.setIcon(QtGui.QIcon("resorces/excel.png"))
+        camerabuttonLayout.addWidget(self.exportToExcelButton)
+
+        self.exportToDataBaseButton = QPushButton("Export to DataBase")
+        self.exportToDataBaseButton.setMinimumHeight(40)
+        self.exportToDataBaseButton.setIcon(QtGui.QIcon("resorces/database.png"))
+        camerabuttonLayout.addWidget(self.exportToDataBaseButton)
+        self.exportToDataBaseButton.clicked.connect(self.exportToMysql)
+        camreraButtonBox.setMaximumHeight(50)
+        camreraButtonBox.setLayout(camerabuttonLayout)
+        camerahboxlayout.addWidget(camreraButtonBox)
 
         self.cameraoutput = QLabel()
         self.cameraoutput.setMinimumHeight(200)
@@ -142,7 +163,7 @@ class Window(QDialog):
                 currentImage = cv2.imread(path + student + "/" + student + ".jpg")
                 studentImages.append(currentImage)
                 self.tableWidget.setItem(i, 1, QTableWidgetItem(student))
-                self.tableWidget.setItem(i, 0, QTableWidgetItem(i))
+                self.tableWidget.setItem(i, 0, QTableWidgetItem(str(i)))
                 self.tableWidget.setItem(i, 2, QTableWidgetItem("Absent"))
                 self.listofstudentRollnos.append(i + 1)
                 self.attendanceStatus.append("Absent")
@@ -231,6 +252,111 @@ class Window(QDialog):
                 i += 1
 
             workbook.close()
+
+    def exportToMysql(self):
+        print("here")
+        try:
+            db_connection = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                passwd="root"
+            )
+        except mysql.connector.errors.Error as e:
+            print(e.msg)
+        print('here2')
+
+        # creating database_cursor to perform SQL operation
+        db_cursor = db_connection.cursor()
+        # executing cursor with execute method and pass SQL query
+        db_cursor.execute("CREATE DATABASE my_first_db")
+        # get list of all databases
+        # db_cursor.execute("SHOW DATABASES")
+        # print all databases
+        #
+        # for db in db_cursor:
+        #     print(db)
+        print("here3")
+
+    def addnewStudent(self):
+        self.isnameentered = False
+        self.isimageselected = False
+        self.dialog = QDialog()
+        self.dialog.setWindowIcon(QtGui.QIcon(self.IconName))
+        self.dialog.setModal(True)
+        self.dialog.setWindowTitle("add a new Student")
+        self.dialog.setGeometry(350, 350, 500, 500)
+
+        addnewstudnetBackground = QImage("resorces/add_student_background.jpg")
+        simage = addnewstudnetBackground.scaled(QSize(self.dialog.width(), self.dialog.height()))
+        pallate = QtGui.QPalette()
+        pallate.setBrush(QtGui.QPalette.Window, QtGui.QBrush(simage))
+        self.dialog.setPalette(pallate)
+
+        self.selectClass = QComboBox(self.dialog)
+        self.selectClass.setToolTip("select class")
+        classes = os.listdir("classes")
+        numOfClasses = len(classes)
+        for c in classes:
+            self.selectClass.addItem(c)
+        self.selectClass.setMinimumHeight(40)
+        self.selectClass.setMinimumWidth(60)
+        self.selectClass.move(200, 50)
+
+        namelable = QLabel("Enter Student Name below", self.dialog)
+        namelable.setMinimumWidth(100)
+        namelable.setMinimumHeight(40)
+        namelable.move(175, 125)
+
+        self.nametextbox = QLineEdit(self.dialog)
+        self.nametextbox.setMinimumWidth(200)
+        self.nametextbox.move(150, 175)
+
+        chooseStudentImageLable = QLabel("select student Image", self.dialog)
+        chooseStudentImageLable.setMinimumHeight(40)
+        chooseStudentImageLable.move(200, 200)
+
+        chooseImageButton = QPushButton("Choose Image", self.dialog)
+        chooseImageButton.setMinimumHeight(40)
+        chooseImageButton.move(200, 250)
+        chooseImageButton.clicked.connect(self.chooseImage)
+
+        self.imageNameLable = QLabel("no Image selected", self.dialog)
+        self.imageNameLable.setMinimumHeight(40)
+        self.imageNameLable.setMinimumWidth(300)
+        self.imageNameLable.move(100, 300)
+
+        saveStudentButton = QPushButton("Save Student", self.dialog)
+        saveStudentButton.setMinimumHeight(40)
+        saveStudentButton.move(200, 400)
+        saveStudentButton.clicked.connect(self.savenewstudent)
+
+        self.dialog.exec_()
+
+    def chooseImage(self):
+        fname = QFileDialog.getOpenFileName(self.dialog, 'Open File', 'C\\', 'Image files (*.jpg *.png)')
+        self.ImagePath = fname[0]
+        self.imageNameLable.setText(self.ImagePath)
+        self.isimageselected = True
+
+    def savenewstudent(self):
+        self.isnameentered = self.nametextbox.text() != ""
+        if (self.isimageselected and self.isnameentered):
+            path = "classes/" + self.selectClass.currentText() +  "/Students Data"
+            try:
+                os.mkdir(path + "/" + self.nametextbox.text())
+                copyfile(self.ImagePath, path + "/" + self.nametextbox.text() + "/" + self.nametextbox.text() + self.ImagePath[len(self.ImagePath)-4:len(self.ImagePath)])
+            except Exception as e:
+                print(e.msg)
+
+            self.dialog.close()
+
+
+
+        else:
+            self.imageNameLable.setText("select Image and enter name first")
+
+
+
 
     def displayImage(self, img, window=1):
         qformat = QImage.Format_Indexed8
